@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	maxEvents = 20
+	maxEvents   = 20
 	maxLogRunes = 12000
 )
 
@@ -43,13 +43,13 @@ func Gather(ctx context.Context, k8s kubernetes.Interface, pod *corev1.Pod, cont
 	logTail = trimRunes(logTail, maxLogRunes)
 
 	return llm.FailureContext{
-		Namespace:    pod.Namespace,
-		Pod:          pod.Name,
-		Container:    container,
-		FailureType:  string(ft),
-		PodSpecYAML:  string(specYAML),
-		Events:       evLines,
-		LogsTail:     logTail,
+		Namespace:   pod.Namespace,
+		Pod:         pod.Name,
+		Container:   container,
+		FailureType: string(ft),
+		PodSpecYAML: string(specYAML),
+		Events:      evLines,
+		LogsTail:    logTail,
 	}, nil
 }
 

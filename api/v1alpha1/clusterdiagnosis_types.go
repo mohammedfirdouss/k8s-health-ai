@@ -15,9 +15,9 @@ type ClusterDiagnosis struct {
 
 // ClusterDiagnosisSpec defines the diagnosed workload.
 type ClusterDiagnosisSpec struct {
-	TargetRef   TargetRef      `json:"targetRef"`
-	FailureType string         `json:"failureType"`
-	CollectedAt *metav1.Time   `json:"collectedAt,omitempty"`
+	TargetRef   TargetRef    `json:"targetRef"`
+	FailureType string       `json:"failureType"`
+	CollectedAt *metav1.Time `json:"collectedAt,omitempty"`
 }
 
 // TargetRef points at the Pod that was analyzed.

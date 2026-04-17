@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -107,15 +108,17 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	fc, err := collect.Gather(ctx, r.K8s, &pod, container, ft)
 	if err != nil {
-		return r.fail(ctx, &cd, err)
+		return r.fail(ctx, req.NamespacedName, name, err)
 	}
-	fc.CollectedAt = now
 
 	diag, err := r.LLM.Diagnose(ctx, fc)
 	if err != nil {
-		return r.fail(ctx, &cd, err)
+		return r.fail(ctx, req.NamespacedName, name, err)
 	}
 
+	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: name}, &cd); err != nil {
+		return ctrl.Result{}, err
+	}
 	cd.Status.Phase = healthv1alpha1.PhaseReady
 	cd.Status.RootCause = diag.RootCause
 	cd.Status.Severity = diag.Severity
@@ -124,7 +127,12 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	cd.Status.LastUpdated = &now
 	cd.Status.ObservedFingerprint = fp
 	cd.Status.Message = ""
-
+	if err := r.Client.Status().Update(ctx, &cd); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: name}, &cd); err != nil {
+		return ctrl.Result{}, err
+	}
 	if cd.Annotations == nil {
 		cd.Annotations = map[string]string{}
 	}
@@ -132,16 +140,18 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	if err := r.Client.Update(ctx, &cd); err != nil {
 		return ctrl.Result{}, err
 	}
-	if err := r.Client.Status().Update(ctx, &cd); err != nil {
-		return ctrl.Result{}, err
-	}
 	return ctrl.Result{}, nil
 }
 
-func (r *PodReconciler) fail(ctx context.Context, cd *healthv1alpha1.ClusterDiagnosis, err error) (ctrl.Result, error) {
+func (r *PodReconciler) fail(ctx context.Context, podNN types.NamespacedName, cdName string, err error) (ctrl.Result, error) {
+	var cd healthv1alpha1.ClusterDiagnosis
+	key := client.ObjectKey{Namespace: podNN.Namespace, Name: cdName}
+	if e := r.Client.Get(ctx, key, &cd); e != nil {
+		return ctrl.Result{}, err
+	}
 	cd.Status.Phase = healthv1alpha1.PhaseError
 	cd.Status.Message = err.Error()
-	_ = r.Client.Status().Update(ctx, cd)
+	_ = r.Client.Status().Update(ctx, &cd)
 	return ctrl.Result{}, err
 }
 

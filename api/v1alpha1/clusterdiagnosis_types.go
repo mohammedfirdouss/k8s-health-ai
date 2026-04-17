@@ -47,8 +47,6 @@ const (
 	PhaseError     = "Error"
 )
 
-// +kubebuilder:object:root=true
-
 // ClusterDiagnosisList contains a list of ClusterDiagnosis.
 type ClusterDiagnosisList struct {
 	metav1.TypeMeta `json:",inline"`

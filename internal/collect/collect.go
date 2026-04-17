@@ -55,7 +55,15 @@ func Gather(ctx context.Context, k8s kubernetes.Interface, pod *corev1.Pod, cont
 
 func summarizeEvents(items []corev1.Event, limit int) []string {
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].LastTimestamp.After(items[j].LastTimestamp.Time)
+		ti := items[i].LastTimestamp.Time
+		if ti.IsZero() {
+			ti = items[i].EventTime.Time
+		}
+		tj := items[j].LastTimestamp.Time
+		if tj.IsZero() {
+			tj = items[j].EventTime.Time
+		}
+		return ti.After(tj)
 	})
 	out := make([]string, 0, len(items))
 	for i, e := range items {

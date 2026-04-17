@@ -68,7 +68,7 @@ func Fingerprint(pod *corev1.Pod, container string) string {
 			b.WriteString("|T:")
 			b.WriteString(r.Reason)
 			b.WriteString(":")
-			b.WriteString(strconv.FormatInt(r.ExitCode, 10))
+			b.WriteString(strconv.FormatInt(int64(r.ExitCode), 10))
 		}
 		return b.String()
 	}

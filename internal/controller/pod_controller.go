@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	healthv1alpha1 "github.com/k8s-health-ai/k8s-health-ai/api/v1alpha1"
@@ -28,10 +29,11 @@ const (
 
 // PodReconciler creates ClusterDiagnosis for failing pods.
 type PodReconciler struct {
-	Client client.Client
-	K8s    kubernetes.Interface
-	Scheme *runtime.Scheme
-	LLM    llm.Provider
+	Client    client.Client
+	APIReader client.Reader
+	K8s       kubernetes.Interface
+	Scheme    *runtime.Scheme
+	LLM       llm.Provider
 }
 
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
@@ -53,8 +55,9 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	name := detect.DiagnosisName(pod.Namespace, pod.Name, ft)
+	key := client.ObjectKey{Namespace: pod.Namespace, Name: name}
 	var cd healthv1alpha1.ClusterDiagnosis
-	err := r.Client.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: name}, &cd)
+	err := r.Client.Get(ctx, key, &cd)
 	if apierrors.IsNotFound(err) {
 		cd = healthv1alpha1.ClusterDiagnosis{
 			ObjectMeta: metav1.ObjectMeta{
@@ -74,9 +77,16 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			return ctrl.Result{}, err
 		}
 		if err := r.Client.Create(ctx, &cd); err != nil {
-			return ctrl.Result{}, err
+			if apierrors.IsAlreadyExists(err) {
+				if err := r.getDiagnosis(ctx, key, &cd); err != nil {
+					return ctrl.Result{}, err
+				}
+			} else {
+				return ctrl.Result{}, err
+			}
 		}
-		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: name}, &cd); err != nil {
+		// Uncached read: the delegating cache may not see a just-created object yet.
+		if err := r.getDiagnosis(ctx, key, &cd); err != nil {
 			return ctrl.Result{}, err
 		}
 	} else if err != nil {
@@ -97,12 +107,10 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	now := metav1.Now()
-	cd.Status.Phase = healthv1alpha1.PhaseAnalyzing
-	cd.Status.Message = ""
-	if err := r.Client.Status().Update(ctx, &cd); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: name}, &cd); err != nil {
+	if err := r.patchDiagnosisStatus(ctx, key, func(cur *healthv1alpha1.ClusterDiagnosis) {
+		cur.Status.Phase = healthv1alpha1.PhaseAnalyzing
+		cur.Status.Message = ""
+	}); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -116,43 +124,87 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return r.fail(ctx, req.NamespacedName, name, err)
 	}
 
-	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: name}, &cd); err != nil {
+	if err := r.patchDiagnosisStatus(ctx, key, func(cur *healthv1alpha1.ClusterDiagnosis) {
+		cur.Status.Phase = healthv1alpha1.PhaseReady
+		cur.Status.RootCause = diag.RootCause
+		cur.Status.Severity = diag.Severity
+		cur.Status.RecommendedFix = diag.RecommendedFix
+		cur.Status.Model = diag.Model
+		cur.Status.LastUpdated = &now
+		cur.Status.ObservedFingerprint = fp
+		cur.Status.Message = ""
+	}); err != nil {
 		return ctrl.Result{}, err
 	}
-	cd.Status.Phase = healthv1alpha1.PhaseReady
-	cd.Status.RootCause = diag.RootCause
-	cd.Status.Severity = diag.Severity
-	cd.Status.RecommendedFix = diag.RecommendedFix
-	cd.Status.Model = diag.Model
-	cd.Status.LastUpdated = &now
-	cd.Status.ObservedFingerprint = fp
-	cd.Status.Message = ""
-	if err := r.Client.Status().Update(ctx, &cd); err != nil {
-		return ctrl.Result{}, err
-	}
-	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: name}, &cd); err != nil {
-		return ctrl.Result{}, err
-	}
-	if cd.Annotations == nil {
-		cd.Annotations = map[string]string{}
-	}
-	cd.Annotations[lastLLMCallAnnotation] = time.Now().UTC().Format(time.RFC3339)
-	if err := r.Client.Update(ctx, &cd); err != nil {
+	ts := time.Now().UTC().Format(time.RFC3339)
+	if err := r.patchDiagnosisMeta(ctx, key, func(cur *healthv1alpha1.ClusterDiagnosis) {
+		if cur.Annotations == nil {
+			cur.Annotations = map[string]string{}
+		}
+		cur.Annotations[lastLLMCallAnnotation] = ts
+	}); err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *PodReconciler) fail(ctx context.Context, podNN types.NamespacedName, cdName string, err error) (ctrl.Result, error) {
-	var cd healthv1alpha1.ClusterDiagnosis
+func (r *PodReconciler) fail(ctx context.Context, podNN types.NamespacedName, cdName string, reconcileErr error) (ctrl.Result, error) {
 	key := client.ObjectKey{Namespace: podNN.Namespace, Name: cdName}
-	if e := r.Client.Get(ctx, key, &cd); e != nil {
-		return ctrl.Result{}, err
+	msg := reconcileErr.Error()
+	_ = r.patchDiagnosisStatus(ctx, key, func(cur *healthv1alpha1.ClusterDiagnosis) {
+		cur.Status.Phase = healthv1alpha1.PhaseError
+		cur.Status.Message = msg
+	})
+	return ctrl.Result{}, reconcileErr
+}
+
+func (r *PodReconciler) getDiagnosis(ctx context.Context, key client.ObjectKey, cd *healthv1alpha1.ClusterDiagnosis) error {
+	if r.APIReader != nil {
+		return r.APIReader.Get(ctx, key, cd)
 	}
-	cd.Status.Phase = healthv1alpha1.PhaseError
-	cd.Status.Message = err.Error()
-	_ = r.Client.Status().Update(ctx, &cd)
-	return ctrl.Result{}, err
+	return r.Client.Get(ctx, key, cd)
+}
+
+func (r *PodReconciler) patchDiagnosisStatus(ctx context.Context, key client.ObjectKey, mutate func(*healthv1alpha1.ClusterDiagnosis)) error {
+	var last error
+	for attempt := 0; attempt < 8; attempt++ {
+		var cur healthv1alpha1.ClusterDiagnosis
+		if err := r.getDiagnosis(ctx, key, &cur); err != nil {
+			return err
+		}
+		mutate(&cur)
+		last = r.Client.Status().Update(ctx, &cur)
+		if last == nil {
+			return nil
+		}
+		if apierrors.IsConflict(last) || apierrors.IsTimeout(last) {
+			time.Sleep(time.Duration(25*(attempt+1)) * time.Millisecond)
+			continue
+		}
+		return last
+	}
+	return fmt.Errorf("status update retries exhausted: %w", last)
+}
+
+func (r *PodReconciler) patchDiagnosisMeta(ctx context.Context, key client.ObjectKey, mutate func(*healthv1alpha1.ClusterDiagnosis)) error {
+	var last error
+	for attempt := 0; attempt < 8; attempt++ {
+		var cur healthv1alpha1.ClusterDiagnosis
+		if err := r.getDiagnosis(ctx, key, &cur); err != nil {
+			return err
+		}
+		mutate(&cur)
+		last = r.Client.Update(ctx, &cur)
+		if last == nil {
+			return nil
+		}
+		if apierrors.IsConflict(last) || apierrors.IsTimeout(last) {
+			time.Sleep(time.Duration(25*(attempt+1)) * time.Millisecond)
+			continue
+		}
+		return last
+	}
+	return fmt.Errorf("metadata update retries exhausted: %w", last)
 }
 
 // SetupWithManager registers the reconciler.

@@ -67,10 +67,11 @@ func main() {
 	}
 
 	if err := (&controller.PodReconciler{
-		Client: mgr.GetClient(),
-		K8s:    k8s,
-		Scheme: mgr.GetScheme(),
-		LLM:    llmProv,
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		K8s:       k8s,
+		Scheme:    mgr.GetScheme(),
+		LLM:       llmProv,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "controller")
 		os.Exit(1)

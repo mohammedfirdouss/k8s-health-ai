@@ -42,14 +42,12 @@ func (b *BedrockProvider) Diagnose(ctx context.Context, fc FailureContext) (Diag
 	user := BuildUserPrompt(fc)
 	in := &bedrockruntime.ConverseInput{
 		ModelId: aws.String(b.ModelID),
-		Messages: []types.Message{
-			{
-				Role: types.ConversationRoleUser,
-				Content: []types.ContentBlock{
-					&types.ContentBlockMemberText{Value: user},
-				},
+		Messages: []types.Message{{
+			Role: types.ConversationRoleUser,
+			Content: []types.ContentBlock{
+				&types.ContentBlockMemberText{Value: user},
 			},
-		},
+		}},
 		System: []types.SystemContentBlock{
 			&types.SystemContentBlockMemberText{Value: SystemPrompt()},
 		},

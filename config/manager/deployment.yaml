@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-health-ai-manager
+  namespace: k8s-health-ai-system
+  labels:
+    app: k8s-health-ai-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-health-ai-manager
+  template:
+    metadata:
+      labels:
+        app: k8s-health-ai-manager
+    spec:
+      serviceAccountName: k8s-health-ai-manager
+      containers:
+        - name: manager
+          image: k8s-health-ai-manager:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+          env:
+            - name: LLM_PROVIDER
+              value: "mock"
+          ports:
+            - containerPort: 8080
+              name: metrics
+            - containerPort: 8081
+              name: healthz
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthz
+            initialDelaySeconds: 5
+            periodSeconds: 10

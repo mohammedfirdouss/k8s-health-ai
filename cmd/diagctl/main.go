@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -139,6 +140,13 @@ func runList(args []string) error {
 	if err := c.List(ctx, &list, opts...); err != nil {
 		return fmt.Errorf("list clusterdiagnoses: %w", err)
 	}
+	sort.Slice(list.Items, func(i, j int) bool {
+		ni, nj := list.Items[i].Namespace, list.Items[j].Namespace
+		if ni != nj {
+			return ni < nj
+		}
+		return list.Items[i].Name < list.Items[j].Name
+	})
 
 	switch g.output {
 	case "json":

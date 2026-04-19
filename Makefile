@@ -1,10 +1,13 @@
-.PHONY: test build run install kind-up docker-build deploy
+.PHONY: test build build-diagctl run install kind-up docker-build deploy
 
 test:
 	go test ./...
 
 build:
 	go build -o bin/manager ./cmd/manager
+
+build-diagctl:
+	go build -o bin/diagctl ./cmd/diagctl
 
 run: build
 	LLM_PROVIDER=mock ./bin/manager

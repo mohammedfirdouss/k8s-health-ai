@@ -40,3 +40,21 @@ With `kubectl` configured and the CRD installed (`make install` or apply `config
 ```
 
 This only checks that the `health.k8sai.io` API is registered; it does not run the manager.
+
+## Audit logging
+
+Kubernetes **API server audit logs** capture all CR create/update/delete events for `clusterdiagnoses.health.k8sai.io`. Configure your cluster's audit policy to log at the `Metadata` or `Request` level for the `health.k8sai.io` group if you need compliance records.
+
+The operator itself does not emit separate audit logs. If you require application-level audit (e.g., "which pod triggered which diagnosis"), you can:
+
+- Query `ClusterDiagnosis` objects (`.spec.targetRef` identifies the pod).
+- Add an annotation in the reconciler with the manager pod name / timestamp if traceability is critical.
+
+## NetworkPolicy
+
+For clusters with strict egress controls, apply `config/manager/networkpolicy.yaml`. It allows:
+
+- **Ingress**: Prometheus scrape on port 8080.
+- **Egress**: DNS (kube-dns), kube-apiserver (443/6443), LLM provider HTTPS (443), Ollama (11434).
+
+Tighten `ipBlock` CIDRs to your actual API server and LLM provider ranges in production.

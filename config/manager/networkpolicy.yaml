@@ -1,0 +1,48 @@
+# Optional: restrict manager egress to kube-apiserver and LLM endpoints.
+# Adjust ipBlock CIDRs and ports for your cluster's API server and LLM provider.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: k8s-health-ai-manager
+  namespace: k8s-health-ai-system
+spec:
+  podSelector:
+    matchLabels:
+      app: k8s-health-ai-manager
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Prometheus scrape on metrics port
+    - ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+    # kube-apiserver (adjust CIDR or use namespaceSelector if using in-cluster service)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0   # Replace with your API server CIDR for tighter lockdown
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+    # LLM provider HTTPS (OpenAI, Azure, Bedrock, Vertex, Ollama if remote)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0   # Tighten to specific provider IPs/ranges in production
+      ports:
+        - protocol: TCP
+          port: 443
+        # Ollama default (localhost or remote)
+        - protocol: TCP
+          port: 11434

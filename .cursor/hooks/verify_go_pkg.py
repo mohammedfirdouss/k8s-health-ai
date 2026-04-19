@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Resolve repo-relative go build target from Cursor hook JSON (stdin). Prints ./pkg or empty."""
+"""Resolve repo-relative go build target from Cursor hook JSON (stdin). Prints ./pkg or empty.
+
+PAYLOAD ASSUMPTION: Cursor afterFileEdit hook sends JSON with one of the keys
+"file_path", "path", "uri", or "file" containing the edited file's absolute path.
+If the schema changes, this script silently prints nothing and the caller falls
+back to `go build ./...`.
+"""
 import json
 import os
 import subprocess

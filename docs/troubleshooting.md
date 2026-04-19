@@ -8,6 +8,7 @@ Ensure `ClusterRole` / `ClusterRoleBinding` from `config/rbac/` are applied and 
 
 - **Throttling / 429**: Lower concurrency or increase `LLM_RPM` cap only if your provider allows higher throughput; otherwise back off at the provider.
 - **Auth errors**: Verify API keys and region/project for the selected `LLM_PROVIDER`.
+- **Secret not found / empty keys**: Ensure `llm-credentials` secret exists in `k8s-health-ai-system` namespace and contains non-empty values for the provider you're using. See [configuration.md](configuration.md#secrets-for-llm-credentials).
 - **Azure OpenAI**: Confirm `AZURE_OPENAI_ENDPOINT` matches the resource (no path suffix) and the deployment name exists.
 - **Ollama**: Ensure the daemon is reachable from the manager pod (often requires `hostNetwork` or a sidecar in cluster — not configured by default).
 

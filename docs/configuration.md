@@ -60,6 +60,32 @@ Custom metric: `diagnoses_total{failure_type,phase}`.
 
 Scaling, HPA caveats, and dev hooks: [operations.md](operations.md).
 
+## Secrets for LLM credentials
+
+API keys should be stored in a Kubernetes Secret rather than hardcoded in the deployment.
+
+**Option 1: Create secret imperatively**
+
+```bash
+kubectl -n k8s-health-ai-system create secret generic llm-credentials \
+  --from-literal=OPENAI_API_KEY=sk-... \
+  --from-literal=AZURE_OPENAI_API_KEY=... \
+  --from-literal=AZURE_OPENAI_ENDPOINT=https://... \
+  --from-literal=AZURE_OPENAI_DEPLOYMENT=...
+```
+
+**Option 2: Apply the sample manifest**
+
+Edit `config/manager/secret-llm.yaml` with your values and apply:
+
+```bash
+kubectl apply -f config/manager/secret-llm.yaml
+```
+
+> **Warning**: Never commit real API keys to version control. The sample manifest contains empty placeholders only.
+
+The deployment references this secret via `envFrom` with `optional: true`, so the manager will start without it (defaulting to the `mock` provider).
+
 ## CLI (`diagctl`)
 
 Uses kubeconfig or in-cluster config like `kubectl`. See `diagctl explain` for a short reference.

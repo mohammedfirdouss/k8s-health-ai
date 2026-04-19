@@ -16,6 +16,10 @@ spec:
         app: k8s-health-ai-manager
     spec:
       serviceAccountName: k8s-health-ai-manager
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: manager
           image: k8s-health-ai-manager:latest
@@ -23,9 +27,27 @@ spec:
           args:
             - --metrics-bind-address=:8080
             - --health-probe-bind-address=:8081
+            - --leader-elect=true
           env:
             - name: LLM_PROVIDER
               value: "mock"
+          envFrom:
+            - secretRef:
+                name: llm-credentials
+                optional: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
           ports:
             - containerPort: 8080
               name: metrics

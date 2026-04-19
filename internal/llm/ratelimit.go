@@ -5,7 +5,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/k8s-health-ai/k8s-health-ai/internal/metrics"
 	"golang.org/x/time/rate"
 )
 
@@ -40,4 +42,28 @@ func WrapWithLLMRateLimit(inner Provider) Provider {
 	}
 	lim := rate.NewLimiter(rate.Limit(float64(rpm)/60.0), 1)
 	return &RateLimitedProvider{Inner: inner, Limiter: lim}
+}
+
+// MeasuredProvider wraps a Provider and records call duration to metrics.
+type MeasuredProvider struct {
+	Inner        Provider
+	ProviderName string
+}
+
+// Diagnose implements Provider, recording duration and result.
+func (m *MeasuredProvider) Diagnose(ctx context.Context, fc FailureContext) (Diagnosis, error) {
+	start := time.Now()
+	diag, err := m.Inner.Diagnose(ctx, fc)
+	d := time.Since(start)
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	metrics.ObserveLLMCall(m.ProviderName, result, d)
+	return diag, err
+}
+
+// WrapWithMeasurement wraps a Provider to record LLM call metrics.
+func WrapWithMeasurement(inner Provider, providerName string) Provider {
+	return &MeasuredProvider{Inner: inner, ProviderName: providerName}
 }

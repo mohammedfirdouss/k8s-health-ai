@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"net/http"
 	"os"
 
 	healthv1alpha1 "github.com/k8s-health-ai/k8s-health-ai/api/v1alpha1"
@@ -22,6 +23,13 @@ import (
 
 var scheme = runtime.NewScheme()
 
+func apiserverChecker(k8s *kubernetes.Clientset) healthz.Checker {
+	return func(req *http.Request) error {
+		_, err := k8s.Discovery().ServerVersion()
+		return err
+	}
+}
+
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(healthv1alpha1.AddToScheme(scheme))
@@ -33,8 +41,12 @@ func main() {
 
 	var metricsAddr string
 	var probeAddr string
+	var leaderElect bool
+	var leaderElectionID string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "bind address for metrics")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "bind address for health probes")
+	flag.BoolVar(&leaderElect, "leader-elect", false, "enable leader election for controller manager")
+	flag.StringVar(&leaderElectionID, "leader-election-id", "k8s-health-ai-leader", "name of the configmap used for leader election")
 	flag.Parse()
 
 	cfg, err := ctrl.GetConfig()
@@ -59,7 +71,8 @@ func main() {
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         false,
+		LeaderElection:         leaderElect,
+		LeaderElectionID:       leaderElectionID,
 	})
 	if err != nil {
 		setupLog.Error(err, "manager")
@@ -81,7 +94,7 @@ func main() {
 		setupLog.Error(err, "healthz")
 		os.Exit(1)
 	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+	if err := mgr.AddReadyzCheck("apiserver", apiserverChecker(k8s)); err != nil {
 		setupLog.Error(err, "readyz")
 		os.Exit(1)
 	}

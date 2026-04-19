@@ -1,0 +1,13 @@
+# Sample: namespace-scoped access to ClusterDiagnosis for a tenant namespace.
+# Apply into the namespace you want to isolate (e.g. team-a).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: k8s-health-ai-diagnosis-reader
+rules:
+  - apiGroups: ["health.k8sai.io"]
+    resources: ["clusterdiagnoses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["health.k8sai.io"]
+    resources: ["clusterdiagnoses/status"]
+    verbs: ["get"]

@@ -4,7 +4,12 @@
     "afterFileEdit": [
       {
         "command": "bash .cursor/hooks/verify-go.sh",
-        "matcher": "tool == \"Write\" && file_path matches \".*\\\\.go$\""
+        "matcher": "file_path matches \".*\\.go$\""
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "bash .cursor/hooks/subagent-stop.sh"
       }
     ]
   }

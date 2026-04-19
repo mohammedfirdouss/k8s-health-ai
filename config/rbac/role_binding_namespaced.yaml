@@ -1,0 +1,15 @@
+# Binds Role k8s-health-ai-diagnosis-reader to a ServiceAccount in the same namespace.
+# Replace namespace and subject name before applying.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k8s-health-ai-diagnosis-reader
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: k8s-health-ai-diagnosis-reader
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default

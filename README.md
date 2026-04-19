@@ -1,6 +1,6 @@
 # k8s-health-ai
 
-AI-assisted Kubernetes pod failure diagnosis: a small **controller-runtime** operator that detects `CrashLoopBackOff`, `OOMKilled`, and `ImagePullBackOff`, gathers pod spec, events, and logs, calls a pluggable LLM (**mock** / **Amazon Bedrock** / **Vertex AI Gemini**), and writes results to the `ClusterDiagnosis` CRD (`kubectl get diagnoses`).
+AI-assisted Kubernetes pod failure diagnosis: a small **controller-runtime** operator that detects failing pods (including init errors and many pending/scheduling cases), gathers pod spec, events, and logs, calls a pluggable LLM, and writes results to the `ClusterDiagnosis` CRD (`kubectl get diagnoses`). Status can include **resource usage** (requests/limits) and **canned remediations** per failure class. Prometheus metric: `diagnoses_total`.
 
 Related tooling from [awesome-go](https://github.com/avelino/awesome-go): local clusters with [**kind**](https://github.com/kubernetes-sigs/kind), optional image builds with [**ko**](https://github.com/google/ko) instead of the included `Dockerfile`.
 
@@ -23,14 +23,37 @@ kubectl describe clusterdiagnosis -n default
 
 ## Configuration
 
+Full tables: [docs/configuration.md](docs/configuration.md).
+
 | Env | Meaning |
 |-----|---------|
-| `LLM_PROVIDER` | `mock` (default), `bedrock`, or `vertex` |
-| `AWS_REGION` | Bedrock region |
-| `BEDROCK_MODEL_ID` | e.g. `anthropic.claude-3-haiku-20240307-v1:0` |
-| `GOOGLE_GENAI_USE_VERTEXAI` | `true` for Vertex |
-| `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Vertex project/location |
-| `VERTEX_MODEL` | e.g. `gemini-2.0-flash` |
+| `LLM_PROVIDER` | `mock` (default), `bedrock`, `vertex`, `openai`, `azure-openai`, `ollama` |
+| `LLM_RPM` | LLM calls per minute (default `120`; `0` disables rate limiting) |
+| `AWS_REGION`, `BEDROCK_MODEL_ID` | Bedrock |
+| `GOOGLE_GENAI_USE_VERTEXAI`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `VERTEX_MODEL` | Vertex |
+| `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` | OpenAI-compatible API |
+| `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` | Azure OpenAI |
+| `OLLAMA_HOST`, `OLLAMA_MODEL` | Local Ollama |
+
+## CLI (`diagctl`)
+
+Non-interactive helper for agents and scripts:
+
+```bash
+make build-diagctl
+./bin/diagctl list
+./bin/diagctl get diag-xxxx -n default
+./bin/diagctl explain
+```
+
+## Troubleshooting
+
+See [docs/troubleshooting.md](docs/troubleshooting.md) (RBAC, LLM errors, metrics).
+
+## Optional manifests
+
+- HorizontalPodAutoscaler: `config/manager/hpa.yaml` (needs metrics-server).
+- Namespace-scoped RBAC sample: `config/rbac/role_namespaced.yaml`, `role_binding_namespaced.yaml`.
 
 ## Kind cluster (optional)
 
@@ -53,5 +76,8 @@ make deploy           # build image; load into kind if present
 - `internal/controller` — Pod reconciler
 - `internal/detect` — failure classification
 - `internal/collect` — spec, events, logs
-- `internal/llm` — mock, Bedrock Converse, Vertex `google.golang.org/genai`
-- `config/` — CRD, RBAC, samples, deployment
+- `internal/llm` — mock, Bedrock, Vertex, OpenAI, Azure OpenAI, Ollama; optional rate limit
+- `internal/remediation` — short hints by failure type
+- `internal/metrics` — `diagnoses_total`
+- `cmd/diagctl` — list/get/delete/explain for CRDs
+- `config/` — CRD, RBAC, samples, deployment, optional HPA

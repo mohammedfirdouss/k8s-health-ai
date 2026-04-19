@@ -50,9 +50,17 @@ make build-diagctl
 
 See [docs/troubleshooting.md](docs/troubleshooting.md) (RBAC, LLM errors, metrics).
 
+## Operations (scaling, hooks, smoke checks)
+
+See [docs/operations.md](docs/operations.md). Quick API check after `make install`:
+
+```bash
+make smoke-readonly
+```
+
 ## Optional manifests
 
-- HorizontalPodAutoscaler: `config/manager/hpa.yaml` (needs metrics-server).
+- HorizontalPodAutoscaler: `config/manager/hpa.yaml` (needs metrics-server; see operations doc before enabling multiple replicas).
 - Namespace-scoped RBAC sample: `config/rbac/role_namespaced.yaml`, `role_binding_namespaced.yaml`.
 
 ## Kind cluster (optional)

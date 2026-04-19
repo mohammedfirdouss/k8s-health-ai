@@ -58,6 +58,8 @@ Use standard AWS credential chain (`AWS_PROFILE`, instance role, etc.).
 
 Custom metric: `diagnoses_total{failure_type,phase}`.
 
+Scaling, HPA caveats, and dev hooks: [operations.md](operations.md).
+
 ## CLI (`diagctl`)
 
 Uses kubeconfig or in-cluster config like `kubectl`. See `diagctl explain` for a short reference.

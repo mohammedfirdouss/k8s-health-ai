@@ -1,4 +1,6 @@
-# Optional: scale the manager on CPU. Requires metrics-server in the cluster.
+# Optional HPA — requires metrics-server. Read docs/operations.md: multiple replicas
+# do not shard work; leader election is off, so prefer replica: 1 unless you know why
+# you need more pods (e.g. HA with coordinated leadership — not configured here).
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:

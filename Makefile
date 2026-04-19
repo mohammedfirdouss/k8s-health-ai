@@ -1,7 +1,11 @@
-.PHONY: test build build-diagctl run install kind-up docker-build deploy
+.PHONY: test build build-diagctl run install kind-up docker-build deploy smoke-readonly
 
 test:
 	go test ./...
+
+# Quick check that the CRD API group is registered (needs kubectl + applied CRD).
+smoke-readonly:
+	./hack/smoke-readonly.sh
 
 build:
 	go build -o bin/manager ./cmd/manager

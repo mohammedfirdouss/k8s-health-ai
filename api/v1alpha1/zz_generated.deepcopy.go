@@ -46,6 +46,10 @@ func (in *TargetRef) DeepCopyInto(out *TargetRef) {
 	*out = *in
 }
 
+func (in *ResourceUsage) DeepCopyInto(out *ResourceUsage) {
+	*out = *in
+}
+
 func (in *ClusterDiagnosisStatus) DeepCopyInto(out *ClusterDiagnosisStatus) {
 	*out = *in
 	if in.LastUpdated != nil {
@@ -59,6 +63,16 @@ func (in *ClusterDiagnosisStatus) DeepCopyInto(out *ClusterDiagnosisStatus) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
+	}
+	if in.ResourceUsage != nil {
+		in, out := &in.ResourceUsage, &out.ResourceUsage
+		*out = new(ResourceUsage)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.Remediations != nil {
+		in, out := &in.Remediations, &out.Remediations
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 }
 

@@ -57,6 +57,17 @@ spec:
                 lastUpdated: { type: string, format: date-time }
                 message: { type: string }
                 observedFingerprint: { type: string }
+                resourceUsage:
+                  type: object
+                  properties:
+                    cpuRequest: { type: string }
+                    cpuLimit: { type: string }
+                    memoryRequest: { type: string }
+                    memoryLimit: { type: string }
+                remediations:
+                  type: array
+                  items:
+                    type: string
                 conditions:
                   type: array
                   items:

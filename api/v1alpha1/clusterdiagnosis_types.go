@@ -27,6 +27,14 @@ type TargetRef struct {
 	Name      string `json:"name"`
 }
 
+// ResourceUsage summarizes CPU and memory requests/limits for the diagnosed workload.
+type ResourceUsage struct {
+	CpuRequest    string `json:"cpuRequest,omitempty"`
+	CpuLimit      string `json:"cpuLimit,omitempty"`
+	MemoryRequest string `json:"memoryRequest,omitempty"`
+	MemoryLimit   string `json:"memoryLimit,omitempty"`
+}
+
 // ClusterDiagnosisStatus is written by the operator after LLM inference.
 type ClusterDiagnosisStatus struct {
 	Phase               string             `json:"phase,omitempty"`
@@ -38,6 +46,8 @@ type ClusterDiagnosisStatus struct {
 	Conditions          []metav1.Condition `json:"conditions,omitempty"`
 	Message             string             `json:"message,omitempty"`
 	ObservedFingerprint string             `json:"observedFingerprint,omitempty"`
+	ResourceUsage       *ResourceUsage     `json:"resourceUsage,omitempty"`
+	Remediations        []string           `json:"remediations,omitempty"`
 }
 
 const (

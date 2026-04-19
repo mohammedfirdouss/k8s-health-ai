@@ -46,6 +46,21 @@ type PodReconciler struct {
 
 // Reconcile implements ctrl.Reconciler.
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	start := time.Now()
+	result, err := r.reconcileInner(ctx, req)
+	d := time.Since(start)
+	switch {
+	case err != nil:
+		metrics.ObserveReconcile("error", d)
+	case result.RequeueAfter > 0 || result.Requeue:
+		metrics.ObserveReconcile("skipped", d)
+	default:
+		metrics.ObserveReconcile("success", d)
+	}
+	return result, err
+}
+
+func (r *PodReconciler) reconcileInner(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var pod corev1.Pod
 	if err := r.Client.Get(ctx, req.NamespacedName, &pod); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)

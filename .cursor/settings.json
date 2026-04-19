@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "exa": {
+      "enabled": true
+    },
+    "cli-for-agent": {
+      "enabled": true
+    }
+  }
+}

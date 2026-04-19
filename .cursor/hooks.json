@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "bash .cursor/hooks/verify-go.sh",
+        "matcher": "tool == \"Write\" && file_path matches \".*\\\\.go$\""
+      }
+    ]
+  }
+}

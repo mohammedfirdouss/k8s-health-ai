@@ -17,7 +17,6 @@ import (
 	"github.com/k8s-health-ai/k8s-health-ai/internal/detect"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -147,7 +146,8 @@ func runList(args []string) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(&list)
 	default:
-		return printListText(os.Stdout, list.Items)
+		printListText(os.Stdout, list.Items)
+		return nil
 	}
 }
 

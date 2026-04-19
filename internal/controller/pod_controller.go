@@ -9,6 +9,8 @@ import (
 	"github.com/k8s-health-ai/k8s-health-ai/internal/collect"
 	"github.com/k8s-health-ai/k8s-health-ai/internal/detect"
 	"github.com/k8s-health-ai/k8s-health-ai/internal/llm"
+	"github.com/k8s-health-ai/k8s-health-ai/internal/metrics"
+	"github.com/k8s-health-ai/k8s-health-ai/internal/remediation"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -116,12 +118,12 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 	fc, err := collect.Gather(ctx, r.K8s, &pod, container, ft)
 	if err != nil {
-		return r.fail(ctx, req.NamespacedName, name, err)
+		return r.fail(ctx, req.NamespacedName, name, ft, err)
 	}
 
 	diag, err := r.LLM.Diagnose(ctx, fc)
 	if err != nil {
-		return r.fail(ctx, req.NamespacedName, name, err)
+		return r.fail(ctx, req.NamespacedName, name, ft, err)
 	}
 
 	if err := r.patchDiagnosisStatus(ctx, key, func(cur *healthv1alpha1.ClusterDiagnosis) {
@@ -133,9 +135,12 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		cur.Status.LastUpdated = &now
 		cur.Status.ObservedFingerprint = fp
 		cur.Status.Message = ""
+		cur.Status.ResourceUsage = collect.BuildResourceUsage(&pod, container)
+		cur.Status.Remediations = remediation.ForFailure(ft)
 	}); err != nil {
 		return ctrl.Result{}, err
 	}
+	metrics.RecordDiagnosis(string(ft), "ready")
 	ts := time.Now().UTC().Format(time.RFC3339)
 	if err := r.patchDiagnosisMeta(ctx, key, func(cur *healthv1alpha1.ClusterDiagnosis) {
 		if cur.Annotations == nil {
@@ -148,13 +153,14 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	return ctrl.Result{}, nil
 }
 
-func (r *PodReconciler) fail(ctx context.Context, podNN types.NamespacedName, cdName string, reconcileErr error) (ctrl.Result, error) {
+func (r *PodReconciler) fail(ctx context.Context, podNN types.NamespacedName, cdName string, ft detect.FailureType, reconcileErr error) (ctrl.Result, error) {
 	key := client.ObjectKey{Namespace: podNN.Namespace, Name: cdName}
 	msg := reconcileErr.Error()
 	_ = r.patchDiagnosisStatus(ctx, key, func(cur *healthv1alpha1.ClusterDiagnosis) {
 		cur.Status.Phase = healthv1alpha1.PhaseError
 		cur.Status.Message = msg
 	})
+	metrics.RecordDiagnosis(string(ft), "error")
 	return ctrl.Result{}, reconcileErr
 }
 

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	healthv1alpha1 "github.com/k8s-health-ai/k8s-health-ai/api/v1alpha1"
 	"github.com/k8s-health-ai/k8s-health-ai/internal/detect"
 	"github.com/k8s-health-ai/k8s-health-ai/internal/llm"
 
@@ -111,4 +112,47 @@ func trimRunes(s string, max int) string {
 		return s
 	}
 	return string(r[:max]) + "\n... (truncated)"
+}
+
+// BuildResourceUsage returns CPU/memory requests and limits for the named container
+// (regular containers first, then init containers). Nil if none are set.
+func BuildResourceUsage(pod *corev1.Pod, container string) *healthv1alpha1.ResourceUsage {
+	if pod == nil {
+		return nil
+	}
+	var c *corev1.Container
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == container {
+			c = &pod.Spec.Containers[i]
+			break
+		}
+	}
+	if c == nil {
+		for i := range pod.Spec.InitContainers {
+			if pod.Spec.InitContainers[i].Name == container {
+				c = &pod.Spec.InitContainers[i]
+				break
+			}
+		}
+	}
+	if c == nil {
+		return nil
+	}
+	ru := &healthv1alpha1.ResourceUsage{}
+	if q, ok := c.Resources.Requests[corev1.ResourceCPU]; ok {
+		ru.CpuRequest = q.String()
+	}
+	if q, ok := c.Resources.Limits[corev1.ResourceCPU]; ok {
+		ru.CpuLimit = q.String()
+	}
+	if q, ok := c.Resources.Requests[corev1.ResourceMemory]; ok {
+		ru.MemoryRequest = q.String()
+	}
+	if q, ok := c.Resources.Limits[corev1.ResourceMemory]; ok {
+		ru.MemoryLimit = q.String()
+	}
+	if ru.CpuRequest == "" && ru.CpuLimit == "" && ru.MemoryRequest == "" && ru.MemoryLimit == "" {
+		return nil
+	}
+	return ru
 }
